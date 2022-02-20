@@ -57,9 +57,28 @@ async function getFixturesLiveStats(fixtureId) {
     }
 }
 
+async function getAllLeagues() {
+    try {
+        var options = {
+            method: 'GET',
+            url: `${process.env.API_BASE_URL}/v3/leagues`,
+            headers: {
+                'x-rapidapi-host': process.env.X_RAPIDAPI_HOST,
+                'x-rapidapi-key': process.env.X_RAPIDAPI_KEY
+            }
+        };
+
+        return await (await axios.request(options)).data.response;
+    }
+    catch (err) {
+        throw err;
+    }
+}
+
 
 
 module.exports = {
     getCurrentLiveFixtures,
-    getFixturesLiveStats
+    getFixturesLiveStats,
+    getAllLeagues
 }

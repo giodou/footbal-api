@@ -1,10 +1,11 @@
-const fixtureApi = require('../apis/fixturesApi');
+
+const footballApi = require('../apis/footballApi');
 const footballRespository = require('../repositories/footballRespository');
 const { waitTime } = require('../utils/timeUtils')
 
 async function getLiveFixtures() {
     try {
-        const response = await fixtureApi.getCurrentLiveFixtures();
+        const response = await footballApi.getCurrentLiveFixtures();
 
         if (response && response.data)
             return response.data.response;
@@ -54,7 +55,23 @@ function saveFixtures(fixtures) {
     } catch (err) {
         console.error(`error in syncFixturesInDataBase: ${err}`);
     }
+}
 
+function saveFixturesWithRealTime(fixtures) {
+    try {
+        if (fixtures)
+            fixtures.map(async (liveFixture) => {
+                try {
+                    liveFixture.id = liveFixture.fixture.id;
+                    footballRespository.replaceObj({ id: liveFixture.fixture.id }, { $set: liveFixture }, 'fixtures_with_realtime_stats');
+                } catch (err) {
+                    console.error(`error in syncFixturesInDataBase: ${err}`);
+                }
+
+            });
+    } catch (err) {
+        console.error(`error in syncFixturesInDataBase: ${err}`);
+    }
 }
 
 function sincFixturesStatsToDatabase(liveFixturesStats) {
@@ -73,7 +90,11 @@ async function getFixtureStatsWitRetry(fixture, numberOfReTrys) {
         return false;
 
     try {
-        const response = await fixtureApi.getFixturesLiveStats(fixture.id);
+        const response = await footballApi.getFixturesLiveStats(fixture.id);
+
+        if (fixture.id === 821358) {
+            console.log('Aqui');
+        }
 
         if (response && response.data) {
             return response.data;
@@ -103,16 +124,21 @@ async function sincAndSaveFixtureStats(fixture) {
     }
 }
 
-async function syncLiveFixturesAndRealTimeStatsToDatabase() {
+async function syncLiveFixturesAndRealTimeStatsToDatabase(leaguesWithRealtimeStats) {
     try {
 
         let liveFixtures = await getLiveFixturesWithRety();
 
         if (liveFixtures) {
-            console.log(`sincing stats from ${liveFixtures.length} fixtures...`);
-
+            console.log(`sincing ${liveFixtures.length} fixtures...`);
             saveFixtures(liveFixtures);
-            sincFixturesStatsToDatabase(liveFixtures);
+            
+            const coveredRealtimeStatsFixtures = liveFixtures.filter(fixture => leaguesWithRealtimeStats.find(league_id =>  league_id === fixture.league.id));
+            saveFixturesWithRealTime(coveredRealtimeStatsFixtures);
+
+
+            console.log(`sincing stats from ${coveredRealtimeStatsFixtures.length} covered fixtures...`);
+            sincFixturesStatsToDatabase(coveredRealtimeStatsFixtures);
         }
 
     } catch (err) {
@@ -120,6 +146,38 @@ async function syncLiveFixturesAndRealTimeStatsToDatabase() {
     }
 }
 
+async function getAllLeaguesThatCoversRealtimeStatistics() {
+    const leagues = await footballApi.getAllLeagues();
+
+    const coveredLeagues = leagues.filter(league =>
+        league.seasons[league.seasons.length - 1].coverage.fixtures.statistics_fixtures
+        && (league.seasons[league.seasons.length - 1].current));
+
+    const coveredLeagueIds = coveredLeagues.map(obj => {
+        return obj.league.id
+    })
+
+    return coveredLeagueIds;
+}
+
+async function getAllLeaguesThatCoversPredictions() {
+    const leagues = await footballApi.getAllLeagues();
+
+    const coveredLeagues = leagues.filter(league =>
+        league.seasons[league.seasons.length - 1].coverage.predictions
+        && (league.seasons[league.seasons.length - 1].current));
+
+    const coveredLeagueIds = coveredLeagues.map(obj => {
+        return obj.league.id
+    })
+
+    console.log(`${coveredLeagues.length} leagues with predicitons covered`)
+
+    return coveredLeagueIds;
+}
+
 module.exports = {
-    syncLiveFixturesAndRealTimeStatsToDatabase
+    syncLiveFixturesAndRealTimeStatsToDatabase,
+    getAllLeaguesThatCoversRealtimeStatistics,
+    getAllLeaguesThatCoversPredictions
 }
