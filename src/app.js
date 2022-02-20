@@ -2,40 +2,61 @@ const fixtures = require('../src/fixtures');
 const footballRespository = require('../src/footballRespository');
 
 async function getLiveFixtures() {
-    const response = await fixtures.getCurrentLiveFixtures();
-    return response.data.response;
+    try {
+        const response = await fixtures.getCurrentLiveFixtures();
+        return response.data.response;
+    } catch (err) {
+        console.log(`error in getLiveFixtures: ${err}`);
+    }
 }
 
 function syncFixturesInDataBase(fixtures) {
-    fixtures.map(async (liveFixture) => {
+    try {
+        fixtures.map(async (liveFixture) => {
+            try {
+                liveFixture.id = liveFixture.fixture.id;
+                await footballRespository.replaceObj({ id: liveFixture.fixture.id }, { $set: liveFixture }, 'fixtures');
+            } catch (err) {
+                console.log(`error in syncFixturesInDataBase: ${err}`);
+            }
 
-        liveFixture.id = liveFixture.fixture.id;
-        await footballRespository.replaceObj({ id: liveFixture.fixture.id }, { $set: liveFixture }, 'fixtures');
-    });
+        });
+    } catch (err) {
+        console.log(`error in syncFixturesInDataBase: ${err}`);
+    }
+
 }
 
 async function syncFixturesStatsInDataBase(fixture) {
-    console.log(`sincing stats from fixture id ${fixture.id}`);
-    const timeResponse = new Date();
-    const response = await fixtures.getFixturesLiveStats(fixture.id);
+    try {
+        console.log(`sincing stats from fixture id ${fixture.id}`);
+        const timeResponse = new Date();
+        const response = await fixtures.getFixturesLiveStats(fixture.id);
 
-    let fixtureStats = response.data;
-    fixtureStats.time = timeResponse;
-    fixtureStats.fixture_id = fixture.id;
+        let fixtureStats = response.data;
+        fixtureStats.time = timeResponse;
+        fixtureStats.fixture_id = fixture.id;
 
-    footballRespository.insertObj(fixtureStats, 'fixture_realtime_stats');
+        footballRespository.insertObj(fixtureStats, 'fixture_realtime_stats');
+    } catch (err) {
+        console.log(`error in syncFixturesStatsInDataBase: ${err}`);
+    }
 }
 
 
 async function syncFixturesStatsToDatabase() {
-    console.log('sincing stats from football api...');
+    try {
+        console.log('sincing stats from football api...');
 
-    let liveFixtures = await getLiveFixtures();
-    syncFixturesInDataBase(liveFixtures);
+        let liveFixtures = await getLiveFixtures();
+        syncFixturesInDataBase(liveFixtures);
 
-    liveFixtures.map(async (fixture) => {
-        syncFixturesStatsInDataBase(fixture);
-    });
+        liveFixtures.map(async (fixture) => {
+            syncFixturesStatsInDataBase(fixture);
+        });
+    } catch (err) {
+        console.log(`error in syncFixturesStatsToDatabase: ${err}`);
+    }
 }
 
 syncFixturesStatsToDatabase();
