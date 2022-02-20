@@ -1,13 +1,24 @@
-const { MongoClient  } = require("mongodb");
+const { MongoClient } = require("mongodb");
 
-async function getMongoClient() {
-    const client = new MongoClient(`mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASS}@${process.env.MONGO_HOST}?retryWrites=true&writeConcern=majority`);
+let connection = null;
 
-    await client.connect();
-
-    return client;
+function connect() {
+  const mongoUri = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASS}@${process.env.MONGO_HOST}?retryWrites=true&writeConcern=majority`;
+  return new Promise((resolve, reject) => {
+    MongoClient.connect(mongoUri, function (err, db) {
+      if (err) { reject(err); return; };
+      resolve(db);
+      connection = db;
+    });
+  });
 }
 
-module.exports = {
-    getMongoClient
+function get() {
+  if (!connection) {
+    throw new Error('Call connect first!');
+  }
+
+  return connection.db(process.env.MONGO_DB_NAME);
 }
+
+module.exports = { connect, get }
